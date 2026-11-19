@@ -1,5 +1,16 @@
 # Hackathon: Build a Knowledge System That Knows What's True *Now*
 
+## Final submission for review
+
+The completed implementation is in [`submission/`](submission/). The grader entry
+point is [`submission/solution.py`](submission/solution.py), and the approach,
+validation results, dependencies, and runtime requirements are documented in
+[`submission/NOTES.md`](submission/NOTES.md).
+
+The supplied credit-union website snapshots are intentionally excluded from this
+public repository, as required by the assignment. The solution uses the Python
+standard library and requires no API keys or runtime network access.
+
 ## The problem in one minute
 
 Our assistant answers credit-union members' questions ("What's the 6-month certificate rate?", "How much is a lost debit card?") using the credit union's own website.
