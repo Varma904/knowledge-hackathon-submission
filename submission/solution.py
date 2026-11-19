@@ -19,6 +19,7 @@ sys.path.insert(
 from contract import Answer, Conflict, Snapshot, Source  # noqa: E402
 
 try:
+    from .answering import EvidenceAnswerEngine
     from .retrieval import (
         SearchHit,
         SnapshotRouter,
@@ -31,6 +32,7 @@ try:
         parse_query_qualifiers,
     )
 except ImportError:  # The harness loads this file directly from the submission folder.
+    from answering import EvidenceAnswerEngine
     from retrieval import (
         SearchHit,
         SnapshotRouter,
@@ -59,6 +61,10 @@ class SnapshotKnowledge:
         self.router = SnapshotRouter()
         self._snapshot_pages = {}
         self._auto_conflicts_cache = None
+        self._answer_engine = EvidenceAnswerEngine(
+            self.router,
+            self._snapshot_pages,
+        )
 
     def ingest(self, snapshot: Snapshot) -> None:
         chunks = []
@@ -444,6 +450,21 @@ class SnapshotKnowledge:
         """Map one certificate row through its normalized semantic schema."""
 
         lines = [line.strip() for line in text.splitlines() if line.strip()]
+        prose = re.search(
+            r"\b(\d+)\s*[- ]?month\s+((?:jumbo\s+)?certificate)\s+"
+            r"(?:annual percentage yield|apy)\s*:\s*(\d+(?:\.\d+)?%)",
+            text,
+            re.IGNORECASE,
+        )
+        if prose:
+            tier = "Jumbo " if "jumbo" in prose.group(2).lower() else ""
+            return {
+                "name": f"{prose.group(1)}-Month {tier}Certificate",
+                "dividend_rate": None,
+                "apy": prose.group(3),
+                "minimum": None,
+            }
+
         if len(lines) < 2:
             return None
 
@@ -517,14 +538,19 @@ class SnapshotKnowledge:
 
         candidates_by_url = {}
         for hit in hits:
+            parsed = self._parse_certificate_row(hit.chunk.text)
+            if parsed is None:
+                continue
             assessment = classify_certificate_source(
                 hit,
                 requested_audiences=qualifiers.audiences,
             )
-            if not assessment.accepted:
-                continue
-            parsed = self._parse_certificate_row(hit.chunk.text)
-            if parsed is None:
+            canonical_prose = (
+                "certificate" in hit.chunk.title.lower()
+                and "calculator" not in hit.chunk.title.lower()
+                and "promo" not in hit.chunk.url.lower()
+            )
+            if not assessment.accepted and not canonical_prose:
                 continue
 
             name_lower = parsed["name"].lower()
@@ -619,6 +645,10 @@ class SnapshotKnowledge:
         if certificate_answer is not None:
             return certificate_answer
 
+        projected_answer = self._answer_engine.answer(question, as_of)
+        if projected_answer is not None:
+            return projected_answer
+
         # Retrieved text is evidence, not automatically a safe answer. Unsupported
         # questions refuse instead of returning stale, unrelated, or extra content.
         return Answer(
@@ -627,7 +657,52 @@ class SnapshotKnowledge:
         )
 
     def conflicts(self):
-        return self._latest_auto_rate_conflicts()
+        return self._latest_auto_rate_conflicts() + self._certificate_history_conflicts()
+
+    def _certificate_history_conflicts(self):
+        """Report certificate APY changes between consecutive snapshots."""
+
+        if len(self.router.snapshots) < 2:
+            return []
+        by_snapshot = []
+        for snapshot in self.router.snapshots:
+            facts = {}
+            for chunk in snapshot.index.chunks:
+                parsed = self._parse_certificate_row(chunk.text)
+                if parsed is None or not parsed.get("apy"):
+                    continue
+                if "calculator" in chunk.title.lower() or "promo" in chunk.url.lower():
+                    continue
+                name = re.sub(r"\s+", " ", parsed["name"].lower()).strip()
+                facts.setdefault(name, (parsed["apy"], chunk))
+            by_snapshot.append((snapshot, facts))
+
+        conflicts = []
+        seen = set()
+        for (old_snapshot, old), (new_snapshot, new) in zip(by_snapshot, by_snapshot[1:]):
+            for name in sorted(old.keys() & new.keys()):
+                old_value, old_chunk = old[name]
+                new_value, new_chunk = new[name]
+                key = (name, old_value, new_value)
+                if old_value == new_value or key in seen:
+                    continue
+                seen.add(key)
+                conflicts.append(
+                    Conflict(
+                        topic=f"{name} APY",
+                        values=[old_value, new_value],
+                        sources=[
+                            Source(old_chunk.url, old_snapshot.snapshot_id, old_chunk.text[:500]),
+                            Source(new_chunk.url, new_snapshot.snapshot_id, new_chunk.text[:500]),
+                        ],
+                        resolution=new_value,
+                        reason=(
+                            f"The newer {new_snapshot.taken_on} snapshot supersedes "
+                            f"the {old_snapshot.taken_on} snapshot."
+                        ),
+                    )
+                )
+        return conflicts
 
 
 def build():

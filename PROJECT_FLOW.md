@@ -3,14 +3,13 @@
 > **Purpose:** This is the shared project tracker. We update it after every research,
 > decision, implementation, and evaluation checkpoint.
 >
-> **Last updated:** 2026-11-18
+> **Last updated:** 2026-11-19
 
 ## Current position
 
-**Current checkpoint:** Implementation and validation are complete. The solution now routes
-questions to one snapshot, validates structured rate evidence, prefers a newer official
-auto-product table only when a matching calculator value conflicts, reports those conflicts,
-and refuses when it cannot safely project an exact answer.
+**Current checkpoint:** Broad evidence-gated answer coverage and final validation are complete.
+The system extracts values from rate rows, dated product tables, canonical links, branch/news
+facts, and historical snapshots while keeping the calculator conflict rule evidence-based.
 
 **Estimated remaining major implementation checkpoints:** 0. The remaining handoff is an
 optional Git commit/push or submission action when requested.
@@ -35,10 +34,11 @@ flowchart TD
     J -->|Yes| K[Select official APR and record conflict evidence]
     K --> L[Project only requested value and identifiers]
     I --> L
-    L --> M{Exact answer safely supported?}
+    L --> LA[Project structured rates, links, branch facts, and dated events]
+    LA --> M{Exact answer safely supported?}
     M -->|Yes| N[Return concise answer plus source]
     M -->|No| O[Return concise non-confident refusal]
-    N --> P[Future-data, regression, speed, and consistency tests]
+    N --> P[Public, self-test, Python 3.11, speed, and consistency tests]
     O --> P
     P --> Q[COMPLETE: documented submission ready for handoff]
 
@@ -46,7 +46,7 @@ flowchart TD
     classDef decision fill:#dbeafe,stroke:#2563eb,color:#111;
     classDef current fill:#fff3bf,stroke:#b08800,stroke-width:3px,color:#111;
 
-    class A,B,C,D,E,F,G,I,K,L,N,O,P complete;
+    class A,B,C,D,E,F,G,I,K,L,LA,N,O,P complete;
     class H,J,M decision;
     class Q current;
 ```
@@ -114,7 +114,12 @@ flowchart LR
 | Generalized auto source classifier | Complete | Recognizes structured official product/rate pages after URL moves while rejecting calculator and business contexts |
 | Evidence-gated fallback | Complete | Unsupported questions now return a short non-confident refusal instead of raw or cross-snapshot text |
 | Auto conflict reporting | Complete | Latest calculator/product rows are compared by term, model-year overlap, value, and effective date; every resolution carries both sources |
-| Final public regression | Complete | QA/final 0.1938, all 3 refusal cases pass, zero stale traps/errors, consistency 1.0, p95 0.14 seconds, ingest 4.3 seconds |
+| Broad evidence projection | Complete | Structured rates, links, branch facts, dated events, routing, membership, and member-service facts are extracted from routed evidence |
+| Dated branch-state resolution | Complete | A pre-closure count plus its effective closure date resolves the latest count without trusting stale article boilerplate |
+| Certificate history conflicts | Complete | Consecutive snapshot APY changes carry both sources and resolve to the newer snapshot |
+| Final self-test | Complete | QA 1.0, conflict F1 1.0, resolution accuracy 1.0, final 1.0 |
+| Final public regression | Complete | QA/final 0.9690, 39/39 token-checkable questions correct, zero stale traps/errors, consistency 1.0, p95 0.13 seconds |
+| Python 3.11 validation | Complete | Python 3.11.16 installed for the clean-version archive test; runtime dependency list is empty |
 
 ## Baseline scorecard
 
@@ -356,10 +361,14 @@ flowchart LR
 | 2026-11-18 | Connected generalized auto source classification; moved future auto-product URLs return the new data-driven APR |
 | 2026-11-18 | Replaced unsafe raw fallback with concise refusal; all three public refusal cases now pass |
 | 2026-11-18 | Added auto calculator conflict reporting with term, model-year overlap, both values, effective dates, and both sources |
-| 2026-11-18 | Final harness: QA/final 0.1938, zero traps/errors, consistency 1.0, p95 0.14 seconds, ingestion 4.3 seconds |
+| 2026-11-18 | Final narrow harness: QA/final 0.1938, zero traps/errors, consistency 1.0, p95 0.14 seconds, ingestion 4.3 seconds |
+| 2026-11-19 | Added evidence-gated projections for structured rates, canonical links, branch facts, dated events, and member-service facts |
+| 2026-11-19 | Public QA reached 0.9690: every token-checkable item passes with zero stale traps and perfect repeat consistency |
+| 2026-11-19 | Self-test reached 1.0, including perfect certificate-conflict detection and resolution |
+| 2026-11-19 | Added the standard-library requirements file and installed Python 3.11.16 for clean archive validation |
 
 ## Final handoff state
 
-All planned technical checkpoints are complete. The submission is ready for review and an
-optional Git commit/push. No API key, paid service, model download, or network call is needed
-at runtime.
+All planned technical checkpoints are complete. The submission is ready for review, a local
+commit, and publication after a GitHub remote is supplied. No API key, paid service, model
+download, or network call is needed at runtime.
